@@ -1,0 +1,66 @@
+version: "3.6"
+services:
+  postgres:
+    image: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: "postgres"
+  hasura-server:
+    image: hasura/graphql-engine:v1.2.2
+    depends_on:
+      - "postgres"
+    restart: unless-stopped # likely need restart for postgres to be ready
+    ports:
+      # we need to bind this port to `host` because the web ui of `hasura-console`
+      # will call apis directly to this endpoint
+      - "8080:8080"
+    environment:
+      HASURA_GRAPHQL_DATABASE_URL: postgres://postgres:postgres@postgres:5432/postgres
+      # NOTE
+      # disabling console here, use the webui on http://localhost:9695/
+      HASURA_GRAPHQL_ENABLE_CONSOLE: "false"
+      HASURA_GRAPHQL_DEV_MODE: "true"
+      HASURA_GRAPHQL_ADMIN_SECRET: adminsecret
+      HASURA_GRAPHQL_ENABLE_TELEMETRY: "false"
+      HASURA_GRAPHQL_JWT_SECRET: '{ "type": "HS512", "key": "${HASURA_GRAPHQL_JWT_SECRET}" }'
+      # Tell hasura what is the default role if a request does not include token
+      HASURA_GRAPHQL_UNAUTHORIZED_ROLE: public
+      ACTION_BASE_URL: ${API_URL:-http://host.docker.internal:3000}
+  hasura-console:
+    depends_on:
+      - "hasura-server"
+    restart: unless-stopped # likely need restart for hasura-server to be ready
+    build: ./hasura
+    command:
+      - ./docker-compose-up.sh
+    ports:
+      # NOTE
+      # interact with hasura only through this port, i.e. http://localhost:9695/
+      - "9695:9695"
+      - "9693:9693"
+    volumes:
+      - ./hasura:/hasura
+      - hasura_cache:/root/.hasura
+    working_dir: /hasura
+    environment:
+      # Precedence order is flag > ENV vars > .env file values > configuration file values > default.
+      # -- https://hasura.io/docs/1.0/graphql/manual/hasura-cli/config-reference.html
+      HASURA_GRAPHQL_ADMIN_SECRET: adminsecret
+      HASURA_GRAPHQL_ACTIONS_HANDLER_WEBHOOK_BASEURL: ${API_URL:-http://host.docker.internal:3000}
+      #
+      # - `hasura console` server interacts with this endpoint directly
+      # - our browser will also interact with this endpoint directly (via hasura console webui)
+      #
+      # so unfortunately, this means `hasura-server` hostname must be reachable from
+      # inside this docker container AND our host machine.
+      #
+      # NOTE
+      # i.e. add `127.0.0.1 hasura-server` to your `/etc/hosts` file
+      HASURA_GRAPHQL_ENDPOINT: "http://hasura-server:8080"
+
+volumes:
+  db_data:
+  hasura_cache:
