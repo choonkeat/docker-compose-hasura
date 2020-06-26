@@ -28,6 +28,9 @@ services:
       HASURA_GRAPHQL_JWT_SECRET: '{ "type": "HS512", "key": "${HASURA_GRAPHQL_JWT_SECRET}" }'
       # Tell hasura what is the default role if a request does not include token
       HASURA_GRAPHQL_UNAUTHORIZED_ROLE: public
+      # If enabled, the server sends numeric types which do not fit into IEEE 754 binary64 (double precision) range as String
+      # - https://github.com/hasura/graphql-engine/issues/1523
+      HASURA_GRAPHQL_STRINGIFY_NUMERIC_TYPES: "true"
       ACTION_BASE_URL: ${API_URL:-http://host.docker.internal:3000}
   hasura-console:
     depends_on:
